@@ -79,8 +79,16 @@ app.post('/tool', requireAuth, (req, res) => {
   const html   = req.body;
   const author = req.headers['x-author'] || 'Unknown';
 
-  if (!html || typeof html !== 'string' || !html.includes('<!DOCTYPE')) {
-    return res.status(400).json({ error: 'Invalid HTML' });
+  // Handle both string and Buffer (from binary uploads)
+  let htmlStr = html;
+  if (Buffer.isBuffer(html)) htmlStr = html.toString('utf8');
+  if (typeof htmlStr !== 'string') htmlStr = String(htmlStr);
+  
+  // Strip BOM if present
+  if (htmlStr.charCodeAt(0) === 0xFEFF) htmlStr = htmlStr.slice(1);
+
+  if (!htmlStr || htmlStr.length < 100) {
+    return res.status(400).json({ error: 'Invalid HTML - too short' });
   }
 
   const meta    = loadMeta();
@@ -94,7 +102,7 @@ app.post('/tool', requireAuth, (req, res) => {
   }
 
   // Save new current
-  fs.writeFileSync(TOOL_PATH, html);
+  fs.writeFileSync(TOOL_PATH, htmlStr, 'utf8');
 
   // Update meta
   meta.version    = version;
