@@ -62,11 +62,13 @@ app.get('/', (req, res) => {
 // GET /tool — serve latest HTML
 app.get('/tool', (req, res) => {
   if (!fs.existsSync(TOOL_PATH)) {
-    return res.status(404).send('<!-- Tool not yet uploaded -->');
+    return res.status(404).send('<!DOCTYPE html><html><body>Tool not yet uploaded</body></html>');
   }
+  const html = fs.readFileSync(TOOL_PATH, 'utf8');
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store');
-  res.sendFile(TOOL_PATH);
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.send(html);
 });
 
 // GET /tool/meta — version info without full HTML
