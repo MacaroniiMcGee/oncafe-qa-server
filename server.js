@@ -58,13 +58,19 @@ app.get('/tool', (req, res) => {
   if (html.charCodeAt(0) === 0xFEFF) html = html.slice(1);
 
   // Inject server config so auto-save and Save & Deploy know the URL
+  // Build server URL - try multiple env vars Railway might set
   const serverUrl = process.env.RAILWAY_PUBLIC_DOMAIN
     ? 'https://' + process.env.RAILWAY_PUBLIC_DOMAIN
-    : (process.env.SERVER_URL || '');
-  const configScript = `<script>
-    window.__ONCAFE_SERVER__   = ${JSON.stringify(serverUrl + '/tool')};
-    window.__ONCAFE_AUTH_KEY__ = ${JSON.stringify(AUTH_KEY)};
-  </script>`;
+    : process.env.RAILWAY_STATIC_URL
+    ? process.env.RAILWAY_STATIC_URL
+    : process.env.SERVER_URL
+    ? process.env.SERVER_URL
+    : 'https://oncafe-qa-server-production.up.railway.app';
+
+  const configScript = '<script>\n' +
+    'window.__ONCAFE_SERVER__="' + serverUrl + '/tool";\n' +
+    'window.__ONCAFE_AUTH_KEY__="' + AUTH_KEY + '";\n' +
+    '<\/script>';
   html = html.replace('</head>', configScript + '</head>');
 
   const buf = Buffer.from(html, 'utf8');
