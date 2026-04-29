@@ -46,27 +46,41 @@ function saveMeta(meta) {
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
-// GET / — health check + info
-app.get('/', (req, res) => {
-  const meta = loadMeta();
-  res.json({
-    app:        'OnCAFE QA Tool Server',
-    version:    meta.version,
-    lastSaved:  meta.lastSaved,
-    lastAuthor: meta.lastAuthor,
-    saves:      meta.saves?.length || 0,
-    status:     'running'
-  });
-});
+// Root route handled below
 
 // GET /tool — serve latest HTML
 app.get('/tool', (req, res) => {
   if (!fs.existsSync(TOOL_PATH)) {
-    return res.status(404).send('<!-- Tool not yet uploaded -->');
+    res.type('html');
+    return res.status(404).send('<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="background:#111;color:#fff;font-family:sans-serif;padding:40px"><h2>Tool not yet uploaded</h2><p>POST your HTML to /tool with header x-auth-key</p></body></html>');
   }
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store');
-  res.sendFile(TOOL_PATH);
+  let html = fs.readFileSync(TOOL_PATH, 'utf8');
+  if (html.charCodeAt(0) === 0xFEFF) html = html.slice(1);
+
+  // Inject server config so auto-save and Save & Deploy know the URL
+  const serverUrl = process.env.RAILWAY_PUBLIC_DOMAIN
+    ? 'https://' + process.env.RAILWAY_PUBLIC_DOMAIN
+    : (process.env.SERVER_URL || '');
+  const configScript = `<script>
+    window.__ONCAFE_SERVER__   = ${JSON.stringify(serverUrl + '/tool')};
+    window.__ONCAFE_AUTH_KEY__ = ${JSON.stringify(AUTH_KEY)};
+  </script>`;
+  html = html.replace('</head>', configScript + '</head>');
+
+  const buf = Buffer.from(html, 'utf8');
+  res.type('html');
+  res.set('Cache-Control', 'no-store');
+  res.set('Content-Length', buf.length);
+  res.status(200).end(buf);
+});
+
+// GET / — redirect to /tool so browser opens the tool directly
+app.get('/', (req, res) => {
+  if (req.headers.accept && req.headers.accept.includes('text/html') && fs.existsSync(TOOL_PATH)) {
+    return res.redirect('/tool');
+  }
+  const meta = loadMeta();
+  res.json({ app:'OnCAFE QA Tool Server', version:meta.version, lastSaved:meta.lastSaved, lastAuthor:meta.lastAuthor, saves:meta.saves?.length||0, status:'running' });
 });
 
 // GET /tool/meta — version info without full HTML
